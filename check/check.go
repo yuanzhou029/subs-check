@@ -119,7 +119,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	}
 
 	slog.Info("开始检测节点")
-	slog.Info("当前参数", "concurrent", config.GlobalConfig.Concurrent, "min-speed", config.GlobalConfig.MinSpeed, "download-timeout", config.GlobalConfig.DownloadTimeout, "download-mb", config.GlobalConfig.DownloadMB, "total-speed-limit", config.GlobalConfig.TotalSpeedLimit)
+	slog.Info("当前参数", "timeout", config.GlobalConfig.Timeout, "concurrent", config.GlobalConfig.Concurrent, "min-speed", config.GlobalConfig.MinSpeed, "download-timeout", config.GlobalConfig.DownloadTimeout, "download-mb", config.GlobalConfig.DownloadMB, "total-speed-limit", config.GlobalConfig.TotalSpeedLimit)
 
 	done := make(chan bool)
 	if config.GlobalConfig.PrintProgress {
@@ -163,10 +163,10 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	if config.GlobalConfig.SpeedTestUrl != "" {
 		slog.Info(fmt.Sprintf("测速总消耗流量: %.2fGB", float64(TotalBytes.Load())/1024/1024/1024))
 	}
-	
+
 	// 检查订阅成功率并发出警告
 	pc.checkSubscriptionSuccessRate(proxies)
-	
+
 	return pc.results, nil
 }
 
@@ -235,10 +235,11 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any) *Result {
 				}
 			case "iprisk":
 				country, ip := proxyutils.GetProxyCountry(httpClient.Client)
-				if ip != "" && country != "" {
-					res.IP = ip
-					res.Country = country
+				if ip == "" {
+					break
 				}
+				res.IP = ip
+				res.Country = country
 				risk, err := platform.CheckIPRisk(httpClient.Client, ip)
 				if err == nil {
 					res.IPRisk = risk
@@ -273,9 +274,6 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(res.Country)
 		} else {
 			country, _ := proxyutils.GetProxyCountry(httpClient.Client)
-			if country == "" {
-				country = "未识别"
-			}
 			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(country)
 		}
 	}
@@ -471,26 +469,26 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 				stats.success++
 				subStats[subUrl] = stats
 			}
+			delete(result.Proxy, "subscription_url")
 		}
 	}
 
 	// 检查成功率并发出警告
 	for subUrl, stats := range subStats {
 		if stats.total > 0 {
-			successRate := float64(stats.success) / float64(stats.total)
-			failureRate := 1.0 - successRate
-			
-			// 如果失败率超过80%（成功率低于20%），发出警告
-			if successRate < 0.2 {
-				slog.Warn(fmt.Sprintf("订阅链接节点成功率过低: %s", subUrl),
+			successRate := float32(stats.success) / float32(stats.total)
+
+			// 如果成功率低于x，发出警告
+			if successRate < config.GlobalConfig.SuccessRate {
+				slog.Warn(fmt.Sprintf("订阅成功率过低: %s", subUrl),
 					"总节点数", stats.total,
 					"成功节点数", stats.success,
-					"失败占比", fmt.Sprintf("%.1f%%", failureRate*100))
+					"成功占比", fmt.Sprintf("%.2f%%", successRate*100))
 			} else {
-				slog.Debug(fmt.Sprintf("订阅链接节点统计: %s", subUrl),
+				slog.Debug(fmt.Sprintf("订阅节点统计: %s", subUrl),
 					"总节点数", stats.total,
 					"成功节点数", stats.success,
-					"成功率", fmt.Sprintf("%.1f%%", successRate*100))
+					"成功占比", fmt.Sprintf("%.2f%%", successRate*100))
 			}
 		}
 	}
