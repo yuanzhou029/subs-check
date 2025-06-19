@@ -27,7 +27,11 @@ jobs:
         run: |
           git checkout master
           git merge upstream/master --no-edit --allow-unrelated-histories
-
+          # 手动解决冲突并提交
+          git add .github/workflows/release.yml
+          git add .github/workflows/sync-upstream.yml
+          git commit -m "Resolve merge conflicts"
+          
       - name: Push changes and tags
         run: |
           git push origin master
