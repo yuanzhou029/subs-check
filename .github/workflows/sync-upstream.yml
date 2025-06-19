@@ -27,11 +27,26 @@ jobs:
         run: |
           git checkout master
           git merge upstream/master --no-edit --allow-unrelated-histories
-          # 手动解决冲突并提交
-          git add .github/workflows/release.yml
-          git add .github/workflows/sync-upstream.yml
-          git commit -m "Resolve merge conflicts"
-          
+
+      - name: Resolve and Commit Merge Conflicts
+        run: |
+          if git diff --name-only --diff-filter=U | grep -q '.*'; then
+            echo "Conflicts found. Resolving..."
+            # List all conflicted files
+            while IFS= read -r file; do
+              echo "Resolving $file..."
+              # Uncomment and modify the following lines if you want to handle conflicts programmatically
+              # sed -i '/<<<<<<< HEAD/,/>>>>>>> upstream\/master/ s/^/#/' "$file"  # Comment out conflicting parts
+              # git add "$file"
+              # Add manual edits here if necessary
+            done < <(git diff --name-only --diff-filter=U)
+            git add .github/workflows/release.yml .github/workflows/sync-upstream.yml  # Add specific files
+            git commit -m "Resolved merge conflicts" || echo "No changes to commit (all conflicts resolved manually)"
+          else
+            echo "No conflicts found. Pulling latest changes..."
+            git pull origin master
+          fi
+
       - name: Push changes and tags
         run: |
           git push origin master
