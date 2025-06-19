@@ -26,7 +26,7 @@ jobs:
       - name: Merge upstream/master into current branch
         run: |
           git checkout master
-          git merge upstream/master --no-edit
+          git merge upstream/master --no-edit --allow-unrelated-histories
 
       - name: Push changes and tags
         run: |
